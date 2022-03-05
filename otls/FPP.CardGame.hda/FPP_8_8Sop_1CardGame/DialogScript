@@ -1,0 +1,87 @@
+# Dialog script for FPP::CardGame automatically generated
+
+{
+    name	FPP::CardGame
+    script	FPP::CardGame
+    label	CardGame
+
+    help {
+	""
+    }
+
+    inputlabel	1	"Sub-Network Input #1"
+    inputlabel	2	"Sub-Network Input #2"
+    inputlabel	3	"Sub-Network Input #3"
+    inputlabel	4	"Sub-Network Input #4"
+
+    parm {
+        name    "GridLevel"
+        label   "GridLevel"
+        type    integer
+        default { "2" }
+        range   { 1 10 }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "CeilSize"
+        label   "CeilSize"
+        type    float
+        default { "1" }
+        range   { 0 10 }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "TypeNum"
+        label   "TypeNum"
+        type    integer
+        default { "3" }
+        range   { 0 50 }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "Seed"
+        label   "Seed"
+        type    integer
+        joinnext
+        default { "5648" }
+        range   { 0 10000 }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "RandomSeed"
+        label   "RandomSeed"
+        type    button
+        default { "0" }
+        parmtag { "script_callback" "hou.phm().random_seed(kwargs)" }
+        parmtag { "script_callback_language" "python" }
+    }
+    group {
+        name    "folder0"
+        label   "Runtime"
+
+        parm {
+            name    "AnimationData"
+            label   "AnimationData"
+            type    string
+            default { "{}" }
+            parmtag { "script_callback_language" "python" }
+        }
+        parm {
+            name    "HoverIndex"
+            label   "HoverIndex"
+            type    integer
+            default { "-1" }
+            range   { 0 10 }
+            parmtag { "script_callback_language" "python" }
+        }
+        parm {
+            name    "AnimationCurve"
+            label   "AnimationCurve"
+            type    ramp_flt
+            default { "2" }
+            range   { 1! 10 }
+            parmtag { "script_callback_language" "python" }
+        }
+    }
+
+}

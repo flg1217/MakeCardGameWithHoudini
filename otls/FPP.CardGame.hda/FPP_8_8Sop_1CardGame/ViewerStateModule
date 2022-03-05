@@ -1,0 +1,129 @@
+import hou
+import viewerstate.utils as su
+import json
+import time
+
+class AnimationHelper:
+    def __init__(self, tick_callback=None):
+        self.animation_duration = 0.3
+        self.wait_time = 1.0
+        self.data = {}
+        self.tick_callback = tick_callback
+        
+        for c in hou.ui.eventLoopCallbacks():
+            hou.ui.removeEventLoopCallback(c)
+        hou.ui.addEventLoopCallback(self.tick)
+    
+    def add_animation(self, index):
+        if not self.is_clickable(index):   return
+        self.data[index] = {'ratio': 0, 'wait_time': self.wait_time, 'active': True}
+    
+    def set_finished(self, index, last_index):
+        print('set_finished:%d, %d' % (index, last_index))
+        self.data[index]['active'] = False
+        self.data[last_index]['active'] = False
+    
+    def is_clickable(self, index):
+        if index == -1: return False
+        if index not in self.data:  return True
+        if not self.data[index]['active']:  return False
+        if self.data[index]['ratio'] == 0:  return True
+    
+    def is_in_waiting(self, index):
+        if index not in self.data:  return False
+        if self.data[index]['wait_time'] > 0 and self.data[index]['ratio'] == 1:
+            return True
+    
+    def tick(self):
+        ratio_step = 0.05 / self.animation_duration
+        for index, value in self.data.items():
+            if value['wait_time'] > 0:  # 翻出来阶段
+                if value['ratio'] < 1:  # 翻出动画阶段
+                    value['ratio'] = hou.hmath.clamp(value['ratio'] + ratio_step, 0, 1)
+                else:  # 卡片完全翻转之后开始进入holding等待阶段
+                    value['wait_time'] = hou.hmath.clamp(value['wait_time'] - 0.05, 0, self.wait_time)
+            # 翻回去阶段只在卡片还在激活状态才进行
+            elif value['active']:
+                value['ratio'] = hou.hmath.clamp(value['ratio'] - ratio_step, 0, 1)
+        if self.tick_callback:  self.tick_callback(self.data)
+    
+    def close(self):
+        hou.ui.removeEventLoopCallback(self.tick)
+
+class State(object):
+    def __init__(self, state_name, scene_viewer):
+        self.state_name = state_name
+        self.scene_viewer = scene_viewer
+        self.last_click = None
+        self.finished_count = 0
+        self.animation = AnimationHelper(tick_callback = self.update_animation_parm)
+    
+    def onEnter(self, kwargs):
+        self.node: hou.Node = kwargs["node"]
+        self.geo: hou.Geometry = self.node.node('OutGrid').geometry()
+        self.game_start_time = time.time()
+        self.node.parm('RandomSeed').pressButton()
+    
+    def onExit(self, kwargs):
+        self.animation.close()
+        with hou.undos.disabler():
+            self.node.parm('HoverIndex').set(-1)
+            self.node.parm('AnimationData').set('{}')
+    
+    def onMouseEvent(self, kwargs):
+        ui_event = kwargs["ui_event"]
+        origin, direction = ui_event.ray()
+        gi = su.GeometryIntersector(self.geo, self.scene_viewer)
+        gi.intersect(origin, direction)
+        click_index = gi.prim_num
+        
+        if self.node.parm('HoverIndex').evalAsInt() != click_index:
+            with hou.undos.disabler():
+                self.node.parm('HoverIndex').set(click_index)
+        
+        reason = ui_event.reason()
+        if reason in [hou.uiEventReason.Picked, hou.uiEventReason.Start]:
+            if self.animation.is_clickable(click_index):
+                self.animation.add_animation(click_index)
+                
+                # print('click:%s' % click_index)
+                if self.is_same_type_with_last(click_index) and self.animation.is_in_waiting(self.last_click):
+                    self.animation.set_finished(click_index, self.last_click)
+                    self.finished_count += 2
+                    self.check_end_game()
+                self.last_click = click_index
+        
+        return False
+    
+    def update_animation_parm(self, data):
+        with hou.undos.disabler():
+            js = json.dumps(data)
+            if js != self.node.parm('AnimationData').evalAsString():
+                self.node.parm('AnimationData').set(js)
+    
+    def get_type_id(self, index):
+        if index is None:   return -1
+        print('click:%s' % index)
+        return self.geo.point(index).intAttribValue('Type')
+    
+    def is_same_type_with_last(self, index):
+        if self.last_click is None or index is None: return False
+        return self.get_type_id(index) == self.get_type_id(self.last_click)
+
+    def check_end_game(self):
+        if self.finished_count == len(self.geo.iterPoints()):
+            hou.ui.displayMessage("挑战成功！用时:%ds" % round(time.time() - self.game_start_time, 0))
+
+def createViewerStateTemplate():
+    """ Mandatory entry point to create and return the viewer state 
+        template to register. """
+    
+    state_typename = kwargs["type"].definition().sections()["DefaultState"].contents()
+    state_label = "ViewerStateCardGame"
+    state_cat = hou.sopNodeTypeCategory()
+    
+    template = hou.ViewerStateTemplate(state_typename, state_label, state_cat)
+    template.bindFactory(State)
+    template.bindIcon(kwargs["type"].icon())
+    
+    return template

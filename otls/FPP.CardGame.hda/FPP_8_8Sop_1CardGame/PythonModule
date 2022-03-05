@@ -1,0 +1,61 @@
+import hou
+import json
+import random
+
+class Grid:
+    def __init__(self, node:hou.Node):
+        self.node = node
+        self.parent:hou.Node = self.node.parent()
+        self.geo:hou.Geometry = node.geometry()
+        grid_level = self.parent.parm('GridLevel').evalAsInt()
+        self.x_count = 2 * grid_level
+        self.y_count = self.x_count
+        self.size = self.parent.parm('CeilSize').evalAsFloat()
+        self.type_num = self.parent.parm('TypeNum').evalAsInt()
+        
+        self.hover_index = self.parent.parm('HoverIndex').evalAsInt()
+        self.animation_data = json.loads(self.parent.parm('AnimationData').evalAsString())
+        self.animation_curve:hou.Ramp = self.parent.parm('AnimationCurve').evalAsRamp()
+        
+        random.seed(self.parent.parm('Seed').evalAsInt())
+        self.init_attrib()
+        self.init_points()
+        self.random_type()
+        
+    def init_attrib(self):
+        self.geo.addAttrib(hou.attribType.Point, 'Coord', (0, 0), create_local_variable=False)
+        self.geo.addAttrib(hou.attribType.Point, 'pscale', 1.0, create_local_variable=False)
+        self.geo.addAttrib(hou.attribType.Point, 'Type', 0, create_local_variable=False)
+        self.geo.addAttrib(hou.attribType.Point, 'orient', (0.0, 0.0, 0.0, 1.0), create_local_variable=False)
+        
+    def init_points(self):
+        for y in range(self.y_count):
+            for x in range(self.x_count):
+                point:hou.Point = self.geo.createPoint()
+                index = self.y_count * y + x
+                scale = 1.0  if self.hover_index == index else 0.95
+                z_depth = 0.1  if self.hover_index == index else 0
+                point.setPosition(hou.Vector3((x + 0.5) * self.size, (y + 0.5) * self.size, z_depth))
+                point.setAttribValue('Coord', (x, y))
+                point.setAttribValue('pscale', scale)
+                if str(index) in self.animation_data:
+                    ratio = self.animation_data[str(index)]['ratio']
+                    value = self.animation_curve.lookup(float(ratio))
+                    q = hou.Quaternion(0, (0, 1, 0)).slerp(hou.Quaternion(180, (0, 1, 0)), value)
+                    point.setAttribValue('orient', q)
+    
+    def random_type(self):
+        half_types = []
+        half_count = self.x_count * self.y_count * 0.5
+        for x in range(int(half_count)):
+            # half_types.append(x % self.type_num)
+            half_types.append(random.randint(0,self.type_num - 1))
+        # print(half_types)
+        types:list = half_types + half_types
+        random.shuffle(types)
+        for point in self.geo.points():
+            id = types.pop()
+            point.setAttribValue('Type', id)
+            
+def random_seed(kwargs):
+    kwargs['node'].parm('Seed').set(str(random.randint(0, 9999)))
