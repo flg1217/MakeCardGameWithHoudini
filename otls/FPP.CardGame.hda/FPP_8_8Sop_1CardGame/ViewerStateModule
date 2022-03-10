@@ -35,15 +35,14 @@ class AnimationHelper:
             return True
     
     def tick(self):
-        ratio_step = 0.05 / self.animation_duration
+        ratio_step = 0.05 / self.animation_duration # EventLoopCallback间隙为50ms
         for index, value in self.data.items():
             if value['wait_time'] > 0:  # 翻出来阶段
-                if value['ratio'] < 1:  # 翻出动画阶段
+                if value['ratio'] < 1:  # 正在播放翻出动画阶段
                     value['ratio'] = hou.hmath.clamp(value['ratio'] + ratio_step, 0, 1)
-                else:  # 卡片完全翻转之后开始进入holding等待阶段
+                else:  # 卡片完全翻转之后等待时长开始递减
                     value['wait_time'] = hou.hmath.clamp(value['wait_time'] - 0.05, 0, self.wait_time)
-            # 翻回去阶段只在卡片还在激活状态才进行
-            elif value['active']:
+            elif value['active']:   # 翻回动画只在卡片还在激活状态下才可能触发
                 value['ratio'] = hou.hmath.clamp(value['ratio'] - ratio_step, 0, 1)
         if self.tick_callback:  self.tick_callback(self.data)
     
@@ -56,13 +55,14 @@ class State(object):
         self.scene_viewer = scene_viewer
         self.last_click = None
         self.finished_count = 0
-        self.animation = AnimationHelper(tick_callback = self.update_animation_parm)
     
     def onEnter(self, kwargs):
         self.node: hou.Node = kwargs["node"]
         self.geo: hou.Geometry = self.node.node('OutGrid').geometry()
+        
         self.game_start_time = time.time()
         self.node.parm('RandomSeed').pressButton()
+        self.animation = AnimationHelper(tick_callback = self.update_animation_parm)
     
     def onExit(self, kwargs):
         self.animation.close()
@@ -92,7 +92,6 @@ class State(object):
                     self.finished_count += 2
                     self.check_end_game()
                 self.last_click = click_index
-        
         return False
     
     def update_animation_parm(self, data):

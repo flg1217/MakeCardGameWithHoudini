@@ -31,10 +31,10 @@ class Grid:
     def init_points(self):
         for y in range(self.y_count):
             for x in range(self.x_count):
-                point:hou.Point = self.geo.createPoint()
                 index = self.y_count * y + x
                 scale = 1.0  if self.hover_index == index else 0.95
                 z_depth = 0.1  if self.hover_index == index else 0
+                point:hou.Point = self.geo.createPoint()
                 point.setPosition(hou.Vector3((x + 0.5) * self.size, (y + 0.5) * self.size, z_depth))
                 point.setAttribValue('Coord', (x, y))
                 point.setAttribValue('pscale', scale)
@@ -48,10 +48,9 @@ class Grid:
         half_types = []
         half_count = self.x_count * self.y_count * 0.5
         for x in range(int(half_count)):
-            # half_types.append(x % self.type_num)
             half_types.append(random.randint(0,self.type_num - 1))
-        # print(half_types)
         types:list = half_types + half_types
+        
         random.shuffle(types)
         for point in self.geo.points():
             id = types.pop()
